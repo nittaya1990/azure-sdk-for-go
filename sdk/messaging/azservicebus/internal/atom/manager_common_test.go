@@ -10,28 +10,21 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/stretchr/testify/require"
 )
 
-// sanity check to make sure my error conforms to azcore's interface
-func TestResponseError(t *testing.T) {
-	var err azcore.HTTPResponse = ResponseError{}
-	require.NotNil(t, err)
-}
-
 type FakeReader struct {
 	io.Reader
-	closed bool
+	closed   bool
+	closeErr error
 }
 
 func (f *FakeReader) Close() error {
 	f.closed = true
-	return nil
+	return f.closeErr
 }
 
 func TestCloseRes(t *testing.T) {
-
 	reader := strings.NewReader("hello")
 	body := &FakeReader{Reader: reader}
 

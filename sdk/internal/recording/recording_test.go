@@ -1,5 +1,5 @@
-//go:build go1.16
-// +build go1.16
+//go:build go1.18
+// +build go1.18
 
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
@@ -7,8 +7,9 @@
 package recording
 
 import (
+	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -56,7 +57,7 @@ func (s *recordingTests) TestStopDoesNotSaveVariablesWhenNoVariablesExist() {
 	err = target.Stop()
 	require.NoError(err)
 
-	_, err = ioutil.ReadFile(target.VariablesFile)
+	_, err = os.ReadFile(target.VariablesFile)
 	require.Equal(true, os.IsNotExist(err))
 }
 
@@ -377,26 +378,23 @@ func (s *recordingTests) TearDownSuite() {
 	}
 }
 
+func TestGetEnvVariable(t *testing.T) {
+	require.Equal(t, GetEnvVariable("Nonexistentevnvar", "somefakevalue"), "somefakevalue")
+	temp := recordMode
+	recordMode = RecordingMode
+	t.Setenv("TEST_VARIABLE", "expected")
+	require.Equal(t, "expected", GetEnvVariable("TEST_VARIABLE", "unexpected"))
+	recordMode = temp
+}
+
 func TestRecordingOptions(t *testing.T) {
 	r := RecordingOptions{
 		UseHTTPS: true,
 	}
-	require.Equal(t, r.hostScheme(), "https://localhost:5001")
+	require.Equal(t, r.baseURL(), "https://localhost:5001")
 
 	r.UseHTTPS = false
-	require.Equal(t, r.hostScheme(), "http://localhost:5000")
-
-	require.Equal(t, GetEnvVariable("Nonexistentevnvar", "somefakevalue"), "somefakevalue")
-	temp := recordMode
-	recordMode = RecordingMode
-	require.NotEqual(t, GetEnvVariable("PROXY_CERT", "fake/path/to/proxycert"), "fake/path/to/proxycert")
-	recordMode = temp
-
-	r.UseHTTPS = false
-	require.Equal(t, r.hostScheme(), "http://localhost:5000")
-
-	r.UseHTTPS = true
-	require.Equal(t, r.hostScheme(), "https://localhost:5001")
+	require.Equal(t, r.baseURL(), "http://localhost:5000")
 }
 
 var packagePath = "sdk/internal/recording/testdata"
@@ -433,24 +431,46 @@ func TestStartStop(t *testing.T) {
 	defer jsonFile.Close()
 }
 
-func TestProxyCert(t *testing.T) {
-	_, err := getRootCas(t)
+func TestStartStopRecordingClient(t *testing.T) {
+	temp := recordMode
+	recordMode = RecordingMode
+	defer func() { recordMode = temp }()
+
+	err := Start(t, packagePath, nil)
 	require.NoError(t, err)
 
-	tempProxyCert, ok := os.LookupEnv("PROXY_CERT")
-	require.True(t, ok)
-	err = os.Unsetenv("PROXY_CERT")
+	client, err := NewRecordingHTTPClient(t, nil)
 	require.NoError(t, err)
 
-	_, err = getRootCas(t)
+	req, err := http.NewRequest("POST", "https://azsdkengsys.azurecr.io/acr/v1/some_registry/_tags", nil)
 	require.NoError(t, err)
 
-	err = os.Setenv("PROXY_CERT", "not/a/path.crt")
+	resp, err := client.Do(req)
 	require.NoError(t, err)
-	_, err = GetHTTPClient(t)
-	require.Error(t, err)
+	require.NotNil(t, resp)
 
-	os.Setenv("PROXY_CERT", tempProxyCert)
+	require.NotNil(t, GetRecordingId(t))
+
+	err = Stop(t, nil)
+	require.NoError(t, err)
+
+	// Make sure the file is there
+	jsonFile, err := os.Open(fmt.Sprintf("./testdata/recordings/%s.json", t.Name()))
+	require.NoError(t, err)
+	defer func() {
+		err = jsonFile.Close()
+		require.NoError(t, err)
+		err = os.Remove(jsonFile.Name())
+		require.NoError(t, err)
+	}()
+
+	var data RecordingFileStruct
+	byteValue, err := io.ReadAll(jsonFile)
+	require.NoError(t, err)
+	err = json.Unmarshal(byteValue, &data)
+	require.NoError(t, err)
+	require.Equal(t, "https://azsdkengsys.azurecr.io/acr/v1/some_registry/_tags", data.Entries[0].RequestURI)
+	require.Equal(t, resp.Request.URL.String(), "https://localhost:5001/acr/v1/some_registry/_tags")
 }
 
 func TestStopRecordingNoStart(t *testing.T) {
@@ -498,6 +518,7 @@ func TestBadAzureRecordMode(t *testing.T) {
 }
 
 func TestBackwardSlashPath(t *testing.T) {
+	t.Skip("Temporarily skipping due to changes in test-proxy.")
 	os.Setenv("AZURE_RECORD_MODE", "record")
 	defer os.Unsetenv("AZURE_RECORD_MODE")
 
@@ -514,4 +535,161 @@ func TestLiveOnly(t *testing.T) {
 	require.Equal(t, IsLiveOnly(t), false)
 	LiveOnly(t)
 	require.Equal(t, IsLiveOnly(t), true)
+}
+
+func TestHostAndScheme(t *testing.T) {
+	r := RecordingOptions{UseHTTPS: true}
+	require.Equal(t, r.scheme(), "https")
+	require.Equal(t, r.host(), "localhost:5001")
+
+	r.UseHTTPS = false
+	require.Equal(t, r.scheme(), "http")
+	require.Equal(t, r.host(), "localhost:5000")
+}
+
+func TestGitRootDetection(t *testing.T) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	gitRoot, err := getGitRoot(cwd)
+	require.NoError(t, err)
+
+	parentDir := filepath.Dir(gitRoot)
+	_, err = getGitRoot(parentDir)
+	require.Error(t, err)
+}
+
+func TestRecordingAssetConfigNotExist(t *testing.T) {
+	absPath, relPath, err := getAssetsConfigLocation(".")
+	require.NoError(t, err)
+	require.Equal(t, "", absPath)
+	require.Equal(t, "", relPath)
+}
+
+func TestRecordingAssetConfigOutOfBounds(t *testing.T) {
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	gitRoot, err := getGitRoot(cwd)
+	require.NoError(t, err)
+	parentDir := filepath.Dir(gitRoot)
+
+	absPath, err := findAssetsConfigFile(parentDir, gitRoot)
+	require.NoError(t, err)
+	require.Equal(t, "", absPath)
+}
+
+func TestRecordingAssetConfig(t *testing.T) {
+	cases := []struct{ expectedDirectory, searchDirectory, testFileLocation string }{
+		{"sdk/internal/recording", "sdk/internal/recording", recordingAssetConfigName},
+		{"sdk/internal/recording", "sdk/internal/recording/", recordingAssetConfigName},
+		{"sdk/internal", "sdk/internal/recording", "../" + recordingAssetConfigName},
+		{"sdk/internal", "sdk/internal/recording/", "../" + recordingAssetConfigName},
+	}
+
+	cwd, err := os.Getwd()
+	require.NoError(t, err)
+	gitRoot, err := getGitRoot(cwd)
+	require.NoError(t, err)
+
+	for _, c := range cases {
+		_ = os.Remove(c.testFileLocation)
+		o, err := os.Create(c.testFileLocation)
+		require.NoError(t, err)
+		o.Close()
+
+		absPath, relPath, err := getAssetsConfigLocation(c.searchDirectory)
+		// Clean up first in case of an assertion panic
+		require.NoError(t, os.Remove(c.testFileLocation))
+		require.NoError(t, err)
+
+		expected := c.expectedDirectory + string(os.PathSeparator) + recordingAssetConfigName
+		expected = strings.ReplaceAll(expected, "/", string(os.PathSeparator))
+		require.Equal(t, expected, relPath)
+
+		absPathExpected := filepath.Join(gitRoot, expected)
+		require.Equal(t, absPathExpected, absPath)
+	}
+}
+
+func TestFindProxyCertLocation(t *testing.T) {
+	savedValue, ok := os.LookupEnv("PROXY_CERT")
+	if ok {
+		defer os.Setenv("PROXY_CERT", savedValue)
+	}
+
+	if ok {
+		location, err := findProxyCertLocation()
+		require.NoError(t, err)
+		require.Contains(t, location, "dotnet-devcert.crt")
+	}
+
+	err := os.Unsetenv("PROXY_CERT")
+	require.NoError(t, err)
+
+	location, err := findProxyCertLocation()
+	require.NoError(t, err)
+	require.Contains(t, location, filepath.Join("eng", "common", "testproxy", "dotnet-devcert.crt"))
+}
+
+func TestVariables(t *testing.T) {
+	temp := recordMode
+	recordMode = RecordingMode
+	defer func() { recordMode = temp }()
+
+	err := Start(t, packagePath, nil)
+	require.NoError(t, err)
+
+	client, err := NewRecordingHTTPClient(t, nil)
+	require.NoError(t, err)
+
+	req, err := http.NewRequest("POST", "https://azsdkengsys.azurecr.io/acr/v1/some_registry/_tags", nil)
+	require.NoError(t, err)
+
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.NotNil(t, resp)
+
+	require.NotNil(t, GetRecordingId(t))
+
+	err = Stop(t, &RecordingOptions{Variables: map[string]interface{}{"key1": "value1", "key2": "1"}})
+	require.NoError(t, err)
+
+	recordMode = PlaybackMode
+	err = Start(t, packagePath, nil)
+	require.NoError(t, err)
+
+	variables := GetVariables(t)
+	require.Equal(t, variables["key1"], "value1")
+	require.Equal(t, variables["key2"], "1")
+
+	err = Stop(t, nil)
+	require.NoError(t, err)
+
+	// Make sure the file is there
+	jsonFile, err := os.Open(fmt.Sprintf("./testdata/recordings/%s.json", t.Name()))
+	require.NoError(t, err)
+	defer func() {
+		err = jsonFile.Close()
+		require.NoError(t, err)
+		err = os.Remove(jsonFile.Name())
+		require.NoError(t, err)
+	}()
+}
+
+func TestRace(t *testing.T) {
+	temp := recordMode
+	recordMode = LiveMode
+	t.Cleanup(func() { recordMode = temp })
+	for i := 0; i < 4; i++ {
+		t.Run("", func(t *testing.T) {
+			t.Parallel()
+			err := Start(t, "", nil)
+			require.NoError(t, err)
+			GetRecordingId(t)
+			GetVariables(t)
+			IsLiveOnly(t)
+			err = Stop(t, nil)
+			require.NoError(t, err)
+			LiveOnly(t)
+		})
+	}
 }

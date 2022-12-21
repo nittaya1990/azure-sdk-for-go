@@ -1,5 +1,5 @@
-//go:build go1.16
-// +build go1.16
+//go:build go1.18
+// +build go1.18
 
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
@@ -16,9 +16,6 @@ import (
 type BearerTokenOptions struct {
 	// Scopes contains the list of permission scopes required for the token.
 	Scopes []string
-	// AuxiliaryTenants contains a list of additional tenant IDs to be used to authenticate
-	// in cross-tenant applications.
-	AuxiliaryTenants []string
 }
 
 // RegistrationOptions configures the registration policy's behavior.
@@ -41,4 +38,12 @@ type RegistrationOptions struct {
 	// The default valule is 5 minutes.
 	// NOTE: Setting this to a small value might cause the policy to prematurely fail.
 	PollingDuration time.Duration
+}
+
+// ClientOptions contains configuration settings for a client's pipeline.
+type ClientOptions struct {
+	policy.ClientOptions
+
+	// DisableRPRegistration disables the auto-RP registration policy. Defaults to false.
+	DisableRPRegistration bool
 }

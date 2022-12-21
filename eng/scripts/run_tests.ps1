@@ -1,17 +1,21 @@
 #Requires -Version 7.0
 
 Param(
-    [string] $serviceDirectory
+    [Parameter(Mandatory = $true)]
+    [string] $serviceDirectory,
+    [string] $testTimeout = "10s"
 )
 
-Push-Location sdk/$serviceDirectory
-Write-Host "##[command] Executing 'go test -run "^Test" -v -coverprofile coverage.txt ./...' in sdk/$serviceDirectory"
+$ErrorActionPreference = 'Stop'
 
-go test -run "^Test" -v -coverprofile coverage.txt ./... | Tee-Object -FilePath outfile.txt
-if ($LASTEXITCODE) {
-    exit $LASTEXITCODE
-}
-Get-Content outfile.txt | go-junit-report > report.xml
+Push-Location sdk/$serviceDirectory
+Write-Host "##[command] Executing 'go test -timeout $testTimeout -v -coverprofile coverage.txt ./...' in sdk/$serviceDirectory"
+
+go test -timeout $testTimeout -v -coverprofile coverage.txt ./... | Tee-Object -FilePath outfile.txt
+# go test will return a non-zero exit code on test failures so don't skip generating the report in this case
+$GOTESTEXITCODE = $LASTEXITCODE
+
+Get-Content -Raw outfile.txt | go-junit-report > report.xml
 
 # if no tests were actually run (e.g. examples) delete the coverage file so it's omitted from the coverage report
 if (Select-String -path ./report.xml -pattern '<testsuites></testsuites>' -simplematch -quiet) {
@@ -31,8 +35,8 @@ if (Select-String -path ./report.xml -pattern '<testsuites></testsuites>' -simpl
     Get-Content ./coverage.json | gocov-xml > ./coverage.xml
     Get-Content ./coverage.json | gocov-html > ./coverage.html
 
-    Move-Item ./coverage.xml $repoRoot
-    Move-Item ./coverage.html $repoRoot
+    Move-Item -Force ./coverage.xml $repoRoot
+    Move-Item -Force ./coverage.html $repoRoot
 
     # use internal tool to fail if coverage is too low
     Pop-Location
@@ -41,4 +45,8 @@ if (Select-String -path ./report.xml -pattern '<testsuites></testsuites>' -simpl
         -config $repoRoot/eng/config.json `
         -serviceDirectory $serviceDirectory `
         -searchDirectory $repoRoot
+}
+
+if ($GOTESTEXITCODE) {
+    exit $GOTESTEXITCODE
 }

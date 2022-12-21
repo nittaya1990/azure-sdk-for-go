@@ -1,5 +1,5 @@
-//go:build go1.16
-// +build go1.16
+//go:build go1.18
+// +build go1.18
 
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
@@ -93,7 +93,7 @@ func TestResponseUnmarshalJSONskipDownload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	req.SkipBodyDownload()
+	SkipBodyDownload(req)
 	resp, err := pl.Do(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)

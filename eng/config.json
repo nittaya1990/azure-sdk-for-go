@@ -1,12 +1,16 @@
 {
     "Packages": [
         {
+            "Name": "azappconfig",
+            "CoverageGoal": 0.19
+        },
+        {
             "Name": "azblob",
-            "CoverageGoal": 0.45
+            "CoverageGoal": 0.30
         },
         {
             "Name": "azcore",
-            "CoverageGoal": 0.85
+            "CoverageGoal": 0.92
         },
         {
             "Name": "azcosmos",
@@ -17,16 +21,29 @@
             "CoverageGoal": 0.68
         },
         {
-            "Name": "azkeys",
-            "CoverageGoal": 0.70
+            "Name": "aztemplate",
+            "CoverageGoal": 0.50
         },
         {
-            "Name": "azsecrets",
-            "CoverageGoal": 0.76
+            "Name": "keyvault/azcertificates",
+            "CoverageGoal": 0.80
+        },
+        {
+            "Name": "keyvault/azkeys",
+            "CoverageGoal": 0.71
+        },
+        {
+            "Name": "keyvault/azsecrets",
+            "CoverageGoal": 0.80
         },
         {
             "Name": "data",
-            "CoverageGoal": 0.62
+            "CoverageGoal": 0.78,
+            "EnvironmentVariables": {
+                "TABLES_STORAGE_ACCOUNT_NAME": "fakeaccount",
+                "TABLES_PRIMARY_STORAGE_ACCOUNT_KEY": "Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==",
+                "TABLES_SHARED_ACCESS_SIGNATURE": "?sig=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw=="
+            }
         },
         {
             "Name": "eng/tools",
@@ -43,6 +60,22 @@
         {
             "Name": "messaging",
             "CoverageGoal": 0.10
+        },
+        {
+            "Name": "messaging/azeventhubs",
+            "CoverageGoal": 0.0
+        },
+        {
+            "Name": "messaging/internal",
+            "CoverageGoal": 0.40
+        },
+        {
+            "Name": "monitor/azquery",
+            "CoverageGoal": 0.80
+        },
+        {
+            "Name": "resourcemanager",
+            "CoverageGoal": 0.0
         }
     ]
 }

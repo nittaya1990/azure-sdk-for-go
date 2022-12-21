@@ -1,7 +1,7 @@
 # Azure SDK for Go - Previous Versions
 
 This guide is for developers who are using the old versions of Azure Go SDK. Those SDKs are located under
-[services folder](https://github.com/Azure/azure-sdk-for-go/tree/master/services). 
+[services folder](https://github.com/Azure/azure-sdk-for-go/tree/legacy/services). 
 
 ## Package Updates
 
@@ -61,7 +61,7 @@ section](#authentication).
    `res, err := c.CreateOrUpdate(...)`.
 4. Handle responses and errors.
 
-[services_dir]: https://github.com/Azure/azure-sdk-for-go/tree/master/services
+[services_dir]: https://github.com/Azure/azure-sdk-for-go/tree/legacy/services
 
 For example, to create a new virtual network (substitute your own values for
 strings in angle brackets):
@@ -163,7 +163,7 @@ options offered by the SDK because it allows seamless use of both service
 principals and [Azure Managed Service Identity][]. Other options are listed
 below.
 
-> Note: If you need to create a new service principal, run `az ad sp create-for-rbac -n "<app_name>" --role Contributor` in the
+> Note: If you need to create a new service principal, run `az ad sp create-for-rbac -n "<app_name>" --role Contributor --scopes /subscriptions/<subscription_id>` in the
 > [azure-cli](https://github.com/Azure/azure-cli). See [these
 > docs](https://docs.microsoft.com/cli/azure/create-an-azure-service-principal-azure-cli?view=azure-cli-latest)
 > for more info. Copy the new principal's ID, secret, and tenant ID for use in
@@ -205,7 +205,7 @@ below.
   credentials from an auth file created by the [Azure CLI][]. Follow these
   steps to utilize:
 
-  1. Create a service principal and output an auth file using `az ad sp create-for-rbac --role Contributor --sdk-auth > client_credentials.json`.
+  1. Create a service principal and output an auth file using `az ad sp create-for-rbac --role Contributor --scopes /subscriptions/<subscription_id> --sdk-auth > client_credentials.json`.
   2. Set environment variable `AZURE_AUTH_LOCATION` to the path of the saved
      output file.
   3. Use the authorizer returned by `auth.NewAuthorizerFromFile()` in your

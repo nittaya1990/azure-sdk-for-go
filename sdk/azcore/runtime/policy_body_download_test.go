@@ -1,5 +1,5 @@
-//go:build go1.16
-// +build go1.16
+//go:build go1.18
+// +build go1.18
 
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
@@ -8,6 +8,7 @@ package runtime
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"testing"
@@ -55,7 +56,7 @@ func TestSkipBodyDownload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	req.SkipBodyDownload()
+	SkipBodyDownload(req)
 	resp, err := pl.Do(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -243,6 +244,9 @@ func TestDownloadBodyWithRetryPost(t *testing.T) {
 	if err == nil {
 		t.Fatal("unexpected nil error")
 	}
+	if s := err.Error(); s != "body download policy: mock read failure" {
+		t.Fatalf("unexpected error message: %s", s)
+	}
 	payload, err := Payload(resp)
 	if err == nil {
 		t.Fatalf("expected an error")
@@ -267,7 +271,7 @@ func TestSkipBodyDownloadWith400(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	req.SkipBodyDownload()
+	SkipBodyDownload(req)
 	resp, err := pl.Do(req)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -307,7 +311,7 @@ func TestReadBodyAfterSeek(t *testing.T) {
 	if string(payload) != message {
 		t.Fatal("incorrect payload")
 	}
-	nb, ok := resp.Body.(*nopClosingBytesReader)
+	nb, ok := resp.Body.(io.ReadSeekCloser)
 	if !ok {
 		t.Fatalf("unexpected body type: %t", resp.Body)
 	}
@@ -331,5 +335,12 @@ func TestReadBodyAfterSeek(t *testing.T) {
 	}
 	if i != 10 {
 		t.Fatalf("did not seek correctly")
+	}
+}
+
+func TestBodyDownloadError(t *testing.T) {
+	bde := &bodyDownloadError{err: io.EOF}
+	if !errors.Is(bde, io.EOF) {
+		t.Fatal("unwrap should provide inner error")
 	}
 }

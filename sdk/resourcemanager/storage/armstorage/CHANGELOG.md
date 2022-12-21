@@ -1,21 +1,31 @@
 # Release History
 
-## 0.2.1 (Unreleased)
-
+## 1.2.0 (2022-12-23)
 ### Features Added
 
-### Breaking Changes
+- New type alias `ListEncryptionScopesInclude`
+- New field `FailoverType` in struct `AccountsClientBeginFailoverOptions`
+- New field `TierToCold` in struct `ManagementPolicyBaseBlob`
+- New field `TierToHot` in struct `ManagementPolicyBaseBlob`
+- New field `Filter` in struct `EncryptionScopesClientListOptions`
+- New field `Include` in struct `EncryptionScopesClientListOptions`
+- New field `Maxpagesize` in struct `EncryptionScopesClientListOptions`
+- New field `TierToHot` in struct `ManagementPolicyVersion`
+- New field `TierToCold` in struct `ManagementPolicyVersion`
+- New field `TierToCold` in struct `ManagementPolicySnapShot`
+- New field `TierToHot` in struct `ManagementPolicySnapShot`
 
-### Bugs Fixed
 
-### Other Changes
+## 1.1.0 (2022-08-10)
+### Features Added
 
-## 0.2.0 (2021-10-29)
+- New const `DirectoryServiceOptionsAADKERB`
 
-### Breaking Changes
 
-- `arm.Connection` has been removed in `github.com/Azure/azure-sdk-for-go/sdk/azcore/v0.20.0`
-- The parameters of `NewXXXClient` has been changed from `(con *arm.Connection, subscriptionID string)` to `(subscriptionID string, credential azcore.TokenCredential, options *arm.ClientOptions)`
+## 1.0.0 (2022-05-16)
 
-## 0.1.0 (2021-09-29)
-- To better align with the Azure SDK guidelines (https://azure.github.io/azure-sdk/general_introduction.html), we have decided to change the module path to "github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage". Therefore, we are deprecating the old module path (which is "github.com/Azure/azure-sdk-for-go/sdk/storage/armstorage") to avoid confusion. 
+The package of `github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/storage/armstorage` is using our [next generation design principles](https://azure.github.io/azure-sdk/general_introduction.html) since version 1.0.0, which contains breaking changes.
+
+To migrate the existing applications to the latest version, please refer to [Migration Guide](https://aka.ms/azsdk/go/mgmt/migration).
+
+To learn more, please refer to our documentation [Quick Start](https://aka.ms/azsdk/go/mgmt).

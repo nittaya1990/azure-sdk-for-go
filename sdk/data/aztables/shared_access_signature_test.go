@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/internal/recording"
 	"github.com/stretchr/testify/require"
 )
@@ -52,14 +53,14 @@ func TestSASServiceClient(t *testing.T) {
 	start := time.Date(2021, time.August, 4, 1, 1, 0, 0, time.UTC)
 	expiry := time.Date(2022, time.August, 4, 1, 1, 0, 0, time.UTC)
 
-	sasUrl, err := serviceClient.GetAccountSASToken(resources, permissions, start, expiry)
+	sasUrl, err := serviceClient.GetAccountSASURL(resources, permissions, start, expiry)
 	require.NoError(t, err)
 
 	err = recording.Start(t, pathToPackage, nil)
 	require.NoError(t, err)
 	svcClient, err := createServiceClientForRecordingWithNoCredential(t, sasUrl)
 	require.NoError(t, err)
-	defer recording.Stop(t, nil) //nolint
+	defer require.NoError(t, recording.Stop(t, nil))
 
 	_, err = svcClient.CreateTable(ctx, tableName+"002", nil)
 	require.NoError(t, err)
@@ -98,14 +99,14 @@ func TestSASClient(t *testing.T) {
 	expiry := time.Date(2022, time.August, 4, 1, 1, 0, 0, time.UTC)
 
 	c := serviceClient.NewClient(tableName)
-	sasUrl, err := c.GetTableSASToken(permissions, start, expiry)
+	sasUrl, err := c.GetTableSASURL(permissions, start, expiry)
 	require.NoError(t, err)
 
 	err = recording.Start(t, pathToPackage, nil)
 	require.NoError(t, err)
 	client, err := createClientForRecordingWithNoCredential(t, "", sasUrl)
 	require.NoError(t, err)
-	defer recording.Stop(t, nil) //nolint
+	defer require.NoError(t, recording.Stop(t, nil))
 
 	entity := map[string]string{
 		"PartitionKey": "pk001",
@@ -152,14 +153,14 @@ func TestSASClientReadOnly(t *testing.T) {
 	expiry := time.Date(2022, time.August, 4, 1, 1, 0, 0, time.UTC)
 
 	c := serviceClient.NewClient(tableName)
-	sasUrl, err := c.GetTableSASToken(permissions, start, expiry)
+	sasUrl, err := c.GetTableSASURL(permissions, start, expiry)
 	require.NoError(t, err)
 
 	err = recording.Start(t, pathToPackage, nil)
 	require.NoError(t, err)
 	client, err = createClientForRecordingWithNoCredential(t, "", sasUrl)
 	require.NoError(t, err)
-	defer recording.Stop(t, nil) //nolint
+	defer require.NoError(t, recording.Stop(t, nil))
 
 	entity := map[string]string{
 		"PartitionKey": "pk001",
@@ -172,15 +173,19 @@ func TestSASClientReadOnly(t *testing.T) {
 	// Failure on a read
 	_, err = client.AddEntity(ctx, marshalled, nil)
 	require.Error(t, err)
+	var httpErr *azcore.ResponseError
+	require.ErrorAs(t, err, &httpErr)
+	require.Equal(t, "AuthorizationPermissionMismatch", httpErr.ErrorCode)
 
 	// Success on a list
-	pager := client.List(nil)
+	pager := client.NewListEntitiesPager(nil)
 	count := 0
-	for pager.NextPage(ctx) {
-		count += len(pager.PageResponse().Entities)
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		require.NoError(t, err)
+		count += len(resp.Entities)
 	}
 
-	require.NoError(t, pager.Err())
 	require.Equal(t, 4, count)
 }
 
@@ -217,14 +222,14 @@ func TestSASCosmosClientReadOnly(t *testing.T) {
 	expiry := time.Date(2022, time.August, 4, 1, 1, 0, 0, time.UTC)
 
 	c := serviceClient.NewClient(tableName)
-	sasUrl, err := c.GetTableSASToken(permissions, start, expiry)
+	sasUrl, err := c.GetTableSASURL(permissions, start, expiry)
 	require.NoError(t, err)
 
 	err = recording.Start(t, pathToPackage, nil)
 	require.NoError(t, err)
 	client, err = createClientForRecordingWithNoCredential(t, "", sasUrl)
 	require.NoError(t, err)
-	defer recording.Stop(t, nil) //nolint
+	defer require.NoError(t, recording.Stop(t, nil))
 
 	entity := map[string]string{
 		"PartitionKey": "pk001",
@@ -237,14 +242,18 @@ func TestSASCosmosClientReadOnly(t *testing.T) {
 	// Failure on a read
 	_, err = client.AddEntity(ctx, marshalled, nil)
 	require.Error(t, err)
+	var httpErr *azcore.ResponseError
+	require.ErrorAs(t, err, &httpErr)
+	require.Equal(t, "Forbidden", httpErr.ErrorCode)
 
 	// Success on a list
-	pager := client.List(nil)
+	pager := client.NewListEntitiesPager(nil)
 	count := 0
-	for pager.NextPage(ctx) {
-		count += len(pager.PageResponse().Entities)
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		require.NoError(t, err)
+		count += len(resp.Entities)
 	}
 
-	require.NoError(t, pager.Err())
 	require.Equal(t, 4, count)
 }

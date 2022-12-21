@@ -7,13 +7,12 @@ Use the client library `github.com/Azure/azure-sdk-for-go/sdk/messaging/azservic
 - Send messages to an Azure Service Bus Queue or Topic
 - Receive messages from an Azure Service Bus Queue or Subscription
 
-**NOTE**: This library is currently a preview. There may be breaking interface changes until it reaches semantic version `v1.0.0`.
-
 Key links:
 - [Source code][source]
 - [API Reference Documentation][godoc]
 - [Product documentation](https://azure.microsoft.com/services/service-bus/)
 - [Samples][godoc_examples]
+- [Migration guide for `azure-service-bus-go` users](https://github.com/Azure/azure-sdk-for-go/blob/main/sdk/messaging/azservicebus/migrationguide.md)
 
 ## Getting started
 
@@ -26,36 +25,19 @@ go get github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus
 ```
 
 ### Prerequisites
-- Go, version 1.16 or higher
+- Go, version 1.18 or higher
 - An [Azure subscription](https://azure.microsoft.com/free/)
-- A [Service Bus Namespace](https://docs.microsoft.com/azure/service-bus-messaging/) 
+- A [Service Bus Namespace](https://docs.microsoft.com/azure/service-bus-messaging/).
+- A Service Bus Queue, Topic or Subscription. You can create an entity in your Service Bus Namespace using the [Azure Portal](https://docs.microsoft.com/azure/service-bus-messaging/service-bus-quickstart-portal), or the [Azure CLI](https://docs.microsoft.com/azure/service-bus-messaging/service-bus-quickstart-cli).
 
 ### Authenticate the client
 
 The Service Bus [Client][godoc_client] can be created using a Service Bus connection string or a credential from the [Azure Identity package][azure_identity_pkg], like [DefaultAzureCredential][default_azure_credential].
 
-#### Using a connection string
+#### Using a Service Principal
 
 ```go
 import (
-  "log"
-  "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
-)
-
-func main() {
-  client, err := azservicebus.NewClientFromConnectionString("<Service Bus connection string>")
- 
-  if err != nil {
-    panic(err)
-  }
-}
-```
-
-#### Using an Azure Active Directory Credential
-
-```go
-import (
-  "log"
   "github.com/Azure/azure-sdk-for-go/sdk/azidentity"
   "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
 )
@@ -63,13 +45,34 @@ import (
 func main() {
   // For more information about the DefaultAzureCredential:
   // https://pkg.go.dev/github.com/Azure/azure-sdk-for-go/sdk/azidentity#NewDefaultAzureCredential
-  cred, err := azidentity.NewDefaultAzureCredential(nil)
+  credential, err := azidentity.NewDefaultAzureCredential(nil)
 
   if err != nil {
     panic(err)
   }
 
-  client, err := azservicebus.NewClient("<ex: my-service-bus.servicebus.windows.net>", cred)
+  // The service principal specified by the credential needs to be added to the appropriate Service Bus roles for your
+  // resource. More information about Service Bus roles can be found here:
+  // https://docs.microsoft.com/azure/service-bus-messaging/service-bus-managed-service-identity#azure-built-in-roles-for-azure-service-bus
+  client, err := azservicebus.NewClient("<ex: myservicebus.servicebus.windows.net>", credential, nil)
+
+  if err != nil {
+    panic(err)
+  }
+}
+```
+
+#### Using a connection string
+
+```go
+import (
+  "github.com/Azure/azure-sdk-for-go/sdk/messaging/azservicebus"
+)
+
+func main() {
+  // See here for instructions on how to get a Service Bus connection string:
+  // https://docs.microsoft.com/azure/service-bus-messaging/service-bus-quickstart-portal#get-the-connection-string
+  client, err := azservicebus.NewClientFromConnectionString(connectionString, nil)
 
   if err != nil {
     panic(err)
@@ -82,7 +85,7 @@ func main() {
 Once you've created a [Client][godoc_client], you can interact with resources within a Service Bus Namespace:
 
 - [Queues][queue_concept]: Allows for sending and receiving messages. Often used for point-to-point communication.
-- [Topics][topic_concept]: As opposed to Queues, Topics are better suited to publish/subscribe scenarios. A topic can be sent to, but requires a subscription, of which there can be multiple in parallel, to consume from.
+- [Topics][topic_concept]: A topic is similar to a queue but splits the receiving and sending into separate entities. Messages are sent to a topic and are broadcast to Subscriptions, where they can be consumed independently, and in parallel by Receivers.
 - [Subscriptions][subscription_concept]: The mechanism to consume from a Topic. Each subscription is independent, and receives a copy of each message sent to the topic. Rules and Filters can be used to tailor which messages are received by a specific subscription.
 
 For more information about these resources, see [What is Azure Service Bus?][service_bus_overview].
@@ -96,7 +99,7 @@ Please note that the Queues, Topics and Subscriptions should be created prior to
 
 ## Examples
 
-The following sections provide code snippets that cover some of the common tasks using Azure Service Bus
+The following sections provide examples that cover common tasks using Azure Service Bus:
 
 - [Send messages](#send-messages)
 - [Receive messages](#receive-messages)
@@ -106,46 +109,78 @@ The following sections provide code snippets that cover some of the common tasks
 
 Once you've created a [Client][godoc_client] you can create a [Sender][godoc_sender], which will allow you to send messages.
 
-NOTE: Creating a `client` is covered in the ["Authenticate the client"](#authenticate-the-client) section of the readme.
+> NOTE: Creating a `azservicebus.Client` is covered in the ["Authenticate the client"](#authenticate-the-client) section of the readme, using a [Service Principal](#using-a-service-principal) or a [Service Bus connection string](#using-a-connection-string).
+
+Sending a single message:
 
 ```go
-sender, err := client.NewSender("<queue or topic>")
-
-if err != nil {
-  panic(err)
-}
-
-// send a single message
-err = sender.SendMessage(context.TODO(), &azservicebus.Message{
+err := sender.SendMessage(context.TODO(), &azservicebus.Message{
   Body: []byte("hello world!"),
-})
+}, nil)
 ```
+
+#### Sending multiple messages using a batch
 
 You can also send messages in batches, which can be more efficient than sending them individually
 
 ```go
 // Create a message batch. It will automatically be sized for the Service Bus
 // Namespace's maximum message size.
-messageBatch, err := sender.NewMessageBatch(context.TODO())
+currentMessageBatch, err := sender.NewMessageBatch(context.TODO(), nil)
 
 if err != nil {
   panic(err)
 }
 
-// Add a message to our message batch. This can be called multiple times.
-err := messageBatch.Add(&azservicebus.Message{
-    Body: []byte(fmt.Sprintf("hello world")),
-})
+messagesToSend := []*azservicebus.Message{
+  // any messages that you'd want to send would be here, or sourced from
+  // somewhere else.
+}
 
-if err == azservicebus.ErrMessageTooLarge {
-  fmt.Printf("Message batch is full. We should send it and create a new one.\n")
+for i := 0; i < len(messagesToSend); i++ {
+  // Add a message to our message batch. This can be called multiple times.
+  err = currentMessageBatch.AddMessage(messagesToSend[i], nil)
 
-  // send what we have since the batch is full
-  err := sender.SendMessageBatch(context.TODO(), messageBatch)
-  
-  // Create a new batch, add this message and start again.
-} else if err != nil {
-  panic(err)
+  if errors.Is(err, azservicebus.ErrMessageTooLarge) {
+    if currentMessageBatch.NumMessages() == 0 {
+      // This means the message itself is too large to be sent, even on its own.
+      // This will require intervention from the user.
+      panic("Single message is too large to be sent in a batch.")
+    }
+
+    fmt.Printf("Message batch is full. Sending it and creating a new one.\n")
+
+    // send what we have since the batch is full
+    err := sender.SendMessageBatch(context.TODO(), currentMessageBatch, nil)
+
+    if err != nil {
+      panic(err)
+    }
+
+    // Create a new batch and retry adding this message to our batch.
+    newBatch, err := sender.NewMessageBatch(context.TODO(), nil)
+
+    if err != nil {
+      panic(err)
+    }
+
+    currentMessageBatch = newBatch
+
+    // rewind the counter and attempt to add the message again (this batch
+    // was full so it didn't go out with the previous SendMessageBatch call).
+    i--
+  } else if err != nil {
+    panic(err)
+  }
+}
+
+// check if any messages are remaining to be sent.
+if currentMessageBatch.NumMessages() > 0 {
+  err := sender.SendMessageBatch(context.TODO(), currentMessageBatch, nil)
+
+  if err != nil {
+    panic(err)
+  }
 }
 ```
 
@@ -153,36 +188,28 @@ if err == azservicebus.ErrMessageTooLarge {
 
 Once you've created a [Client][godoc_client] you can create a [Receiver][godoc_receiver], which will allow you to receive messages.
 
-> NOTE: Creating a `client` is covered in the ["Authenticate the client"](#authenticate-the-client) section of the readme.
+> NOTE: Creating a `azservicebus.Client` is covered in the ["Authenticate the client"](#authenticate-the-client) section of the readme, using a [Service Principal](#using-a-service-principal) or a [Service Bus connection string](#using-a-connection-string).
 
 ```go
 receiver, err := client.NewReceiverForQueue(
   "<queue>",
-  &azservicebus.ReceiverOptions{
-    ReceiveMode: azservicebus.PeekLock,
-  },
+  nil,
 )
 // or
 // client.NewReceiverForSubscription("<topic>", "<subscription>")
 
-if err != nil {
-  panic(err)
-}
+// ReceiveMessages respects the passed in context, and will gracefully stop
+// receiving when 'ctx' is cancelled.
+ctx, cancel := context.WithTimeout(context.TODO(), 60*time.Second)
+defer cancel()
 
-// Receive a fixed set of messages. Note that the number of messages
-// to receive and the amount of time to wait are upper bounds. 
-messages, err := receiver.ReceiveMessages(context.TODO(), 
+messages, err := receiver.ReceiveMessages(ctx,
   // The number of messages to receive. Note this is merely an upper
   // bound. It is possible to get fewer message (or zero), depending
   // on the contents of the remote queue or subscription and network
   // conditions.
-  10, 
-  &azservicebus.ReceiveOptions{
-		// This configures the amount of time to wait for messages to arrive.
-		// Note that this is merely an upper bound. It is possible to get messages
-		// faster than the duration specified.
-		MaxWaitTime: 60 * time.Second,
-	},
+  1,
+  nil,
 )
 
 if err != nil {
@@ -190,14 +217,32 @@ if err != nil {
 }
 
 for _, message := range messages {
-  // process the message here (or in parallel)
-  yourLogicForProcessing(message)  
+  // The message body is a []byte. For this example we're just assuming that the body
+  // was a string, converted to bytes but any []byte payload is valid.
+  var body []byte = message.Body
+  fmt.Printf("Message received with body: %s\n", string(body))
 
   // For more information about settling messages:
   // https://docs.microsoft.com/azure/service-bus-messaging/message-transfers-locks-settlement#settling-receive-operations
-  if err := receiver.CompleteMessage(message); err != nil {
+  err = receiver.CompleteMessage(context.TODO(), message, nil)
+
+  if err != nil {
+    var sbErr *azservicebus.Error
+
+    if errors.As(err, &sbErr) && sbErr.Code == azservicebus.CodeLockLost {
+      // The message lock has expired. This isn't fatal for the client, but it does mean
+      // that this message can be received by another Receiver (or potentially this one!).
+      fmt.Printf("Message lock expired\n")
+
+      // You can extend the message lock by calling receiver.RenewMessageLock(msg) before the
+      // message lock has expired.
+      continue
+    }
+
     panic(err)
-  }
+	}
+
+  fmt.Printf("Received and completed the message\n")
 }
 ```
 
@@ -208,12 +253,12 @@ messages that have been explicitly dead lettered using the [Receiver.DeadLetterM
 
 Opening a dead letter queue is just a configuration option when creating a [Receiver][godoc_receiver].
 
-> NOTE: Creating a `client` is covered in the ["Authenticate the client"](#authenticate-the-client) section of the readme.
+> NOTE: Creating a `azservicebus.Client` is covered in the ["Authenticate the client"](#authenticate-the-client) section of the readme, using a [Service Principal](#using-a-service-principal) or a [Service Bus connection string](#using-a-connection-string).
 
 ```go
 deadLetterReceiver, err := client.NewReceiverForQueue("<queue>",
   &azservicebus.ReceiverOptions{
-	  SubQueue: azservicebus.SubQueueDeadLetter,
+    SubQueue: azservicebus.SubQueueDeadLetter,
   })
 // or 
 // client.NewReceiverForSubscription("<topic>", "<subscription>", 
@@ -223,6 +268,41 @@ deadLetterReceiver, err := client.NewReceiverForQueue("<queue>",
 ```
 
 To see some example code for receiving messages using the Receiver see the ["Receive messages"](#receive-messages) sample.
+
+## Troubleshooting
+
+### Logging
+
+This module uses the classification-based logging implementation in `azcore`. To enable console logging for all SDK modules, set the environment variable `AZURE_SDK_GO_LOGGING` to `all`. 
+
+Use the `azcore/log` package to control log event output or to enable logs for `azservicebus` only. For example:
+
+```go
+import (
+  "fmt"
+  azlog "github.com/Azure/azure-sdk-for-go/sdk/azcore/log"
+)
+
+// print log output to stdout
+azlog.SetListener(func(event azlog.Event, s string) {
+    fmt.Printf("[%s] %s\n", event, s)
+})
+
+// pick the set of events to log
+azlog.SetEvents(
+  // EventConn is used whenever we create a connection or any links (ie: receivers, senders).
+  azservicebus.EventConn,
+  // EventAuth is used when we're doing authentication/claims negotiation.
+  azservicebus.EventAuth,
+  // EventReceiver represents operations that happen on Receivers.
+  azservicebus.EventReceiver,
+  // EventSender represents operations that happen on Senders.
+  azservicebus.EventSender,
+  // EventAdmin is used for operations in the azservicebus/admin.Client
+  azservicebus.EventAdmin,
+)
+```
+
 
 ## Next steps
 

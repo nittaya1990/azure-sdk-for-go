@@ -28,18 +28,21 @@ parameters:
   - name: UsePlatformContainer
     type: boolean
     default: false
+  - name: TestRunTime
+    type: string
+    default: '600s'
 
 jobs:
   - job:
     displayName: Live Test on
     dependsOn: ${{ parameters.DependsOn }}
-    condition: ne(${{ parameters.Matrix }}, '{}')
+    condition: and(succeededOrFailed(), ne(${{ parameters.Matrix }}, '{}'))
     strategy:
       maxParallel: 0
       matrix: $[ ${{ parameters.Matrix }} ]
 
     variables:
-      - template: ../variables/globals.yml
+      - template: /eng/pipelines/templates/variables/globals.yml
       - name: ArmTemplateParameters
         value: '@{}'
 
@@ -84,6 +87,7 @@ jobs:
           ServiceDirectory: ${{ parameters.ServiceDirectory }}
           Image: $(OSVmImage)
           GoVersion: $(GoVersion)
+          TestRunTime: ${{ parameters.TestRunTime }}
           EnvVars:
             AZURE_RECORD_MODE: 'live'
             ${{ insert }}: ${{ parameters.EnvVars }}

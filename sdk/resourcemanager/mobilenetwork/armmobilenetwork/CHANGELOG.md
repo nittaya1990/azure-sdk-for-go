@@ -1,0 +1,190 @@
+# Release History
+
+## 1.0.0 (2022-12-23)
+### Breaking Changes
+
+- Type of `LocalDiagnosticsAccessConfiguration.HTTPSServerCertificate` has been changed from `*KeyVaultCertificate` to `*HTTPSServerCertificate`
+- Const `BillingSKUEdgeSite2GBPS`, `BillingSKUEdgeSite3GBPS`, `BillingSKUEdgeSite4GBPS`, `BillingSKUEvaluationPackage`, `BillingSKUFlagshipStarterPackage`, `BillingSKULargePackage`, `BillingSKUMediumPackage` from type alias `BillingSKU` has been removed
+- Const `PlatformTypeBaseVM` from type alias `PlatformType` has been removed
+- Function `*MobileNetworksClient.BeginListSimIDs` has been removed
+- Function `*PacketCoreControlPlaneVersionsClient.NewListByResourceGroupPager` has been removed
+- Function `*SimsClient.NewListBySimGroupPager` has been removed
+- Struct `KeyVaultCertificate` has been removed
+- Struct `MobileNetworksClientListSimIDsResponse` has been removed
+- Struct `PacketCoreControlPlaneVersionsClientListByResourceGroupResponse` has been removed
+- Struct `SimIDListResult` has been removed
+- Struct `SimsClientListBySimGroupResponse` has been removed
+- Field `MobileNetwork` of struct `PacketCoreControlPlanePropertiesFormat` has been removed
+- Field `RecommendedVersion` of struct `PacketCoreControlPlaneVersionPropertiesFormat` has been removed
+- Field `VersionState` of struct `PacketCoreControlPlaneVersionPropertiesFormat` has been removed
+
+### Features Added
+
+- New value `BillingSKUG0`, `BillingSKUG1`, `BillingSKUG10`, `BillingSKUG2`, `BillingSKUG3`, `BillingSKUG4`, `BillingSKUG5` added to type alias `BillingSKU`
+- New value `PlatformTypeThreePAZURESTACKHCI` added to type alias `PlatformType`
+- New type alias `AuthenticationType` with values `AuthenticationTypeAAD`, `AuthenticationTypePassword`
+- New type alias `CertificateProvisioningState` with values `CertificateProvisioningStateFailed`, `CertificateProvisioningStateNotProvisioned`, `CertificateProvisioningStateProvisioned`
+- New type alias `InstallationState` with values `InstallationStateFailed`, `InstallationStateInstalled`, `InstallationStateInstalling`, `InstallationStateReinstalling`, `InstallationStateRollingBack`, `InstallationStateUninstalled`, `InstallationStateUninstalling`, `InstallationStateUpdating`, `InstallationStateUpgrading`
+- New type alias `ObsoleteVersion` with values `ObsoleteVersionNotObsolete`, `ObsoleteVersionObsolete`
+- New type alias `SiteProvisioningState` with values `SiteProvisioningStateAdding`, `SiteProvisioningStateDeleting`, `SiteProvisioningStateFailed`, `SiteProvisioningStateNotApplicable`, `SiteProvisioningStateProvisioned`, `SiteProvisioningStateUpdating`
+- New function `NewPacketCoreControlPlaneClient(string, azcore.TokenCredential, *arm.ClientOptions) (*PacketCoreControlPlaneClient, error)`
+- New function `*PacketCoreControlPlaneClient.BeginCollectDiagnosticsPackage(context.Context, string, string, PacketCoreControlPlaneCollectDiagnosticsPackage, *PacketCoreControlPlaneClientBeginCollectDiagnosticsPackageOptions) (*runtime.Poller[PacketCoreControlPlaneClientCollectDiagnosticsPackageResponse], error)`
+- New function `*PacketCoreControlPlaneClient.BeginReinstall(context.Context, string, string, *PacketCoreControlPlaneClientBeginReinstallOptions) (*runtime.Poller[PacketCoreControlPlaneClientReinstallResponse], error)`
+- New function `*PacketCoreControlPlaneClient.BeginRollback(context.Context, string, string, *PacketCoreControlPlaneClientBeginRollbackOptions) (*runtime.Poller[PacketCoreControlPlaneClientRollbackResponse], error)`
+- New function `*PacketCoreControlPlaneVersionsClient.NewListPager(*PacketCoreControlPlaneVersionsClientListOptions) *runtime.Pager[PacketCoreControlPlaneVersionsClientListResponse]`
+- New function `NewSimClient(string, azcore.TokenCredential, *arm.ClientOptions) (*SimClient, error)`
+- New function `*SimClient.BeginBulkDelete(context.Context, string, string, SimDeleteList, *SimClientBeginBulkDeleteOptions) (*runtime.Poller[SimClientBulkDeleteResponse], error)`
+- New function `*SimClient.BeginBulkUpload(context.Context, string, string, SimUploadList, *SimClientBeginBulkUploadOptions) (*runtime.Poller[SimClientBulkUploadResponse], error)`
+- New function `*SimClient.BeginBulkUploadEncrypted(context.Context, string, string, EncryptedSimUploadList, *SimClientBeginBulkUploadEncryptedOptions) (*runtime.Poller[SimClientBulkUploadEncryptedResponse], error)`
+- New function `*SimsClient.NewListByGroupPager(string, string, *SimsClientListByGroupOptions) *runtime.Pager[SimsClientListByGroupResponse]`
+- New struct `AsyncOperationID`
+- New struct `AsyncOperationStatus`
+- New struct `AzureStackHCIClusterResourceID`
+- New struct `CertificateProvisioning`
+- New struct `CommonSimPropertiesFormat`
+- New struct `EncryptedSimPropertiesFormat`
+- New struct `EncryptedSimUploadList`
+- New struct `HTTPSServerCertificate`
+- New struct `Installation`
+- New struct `PacketCoreControlPlaneClient`
+- New struct `PacketCoreControlPlaneClientCollectDiagnosticsPackageResponse`
+- New struct `PacketCoreControlPlaneClientReinstallResponse`
+- New struct `PacketCoreControlPlaneClientRollbackResponse`
+- New struct `PacketCoreControlPlaneCollectDiagnosticsPackage`
+- New struct `PacketCoreControlPlaneVersionsClientListResponse`
+- New struct `Platform`
+- New struct `SimClient`
+- New struct `SimClientBulkDeleteResponse`
+- New struct `SimClientBulkUploadEncryptedResponse`
+- New struct `SimClientBulkUploadResponse`
+- New struct `SimDeleteList`
+- New struct `SimNameAndEncryptedProperties`
+- New struct `SimNameAndProperties`
+- New struct `SimUploadList`
+- New struct `SimsClientListByGroupResponse`
+- New struct `SiteResourceID`
+- New field `MaximumNumberOfBufferedPackets` in struct `DataNetworkConfiguration`
+- New field `AuthenticationType` in struct `LocalDiagnosticsAccessConfiguration`
+- New field `Installation` in struct `PacketCoreControlPlanePropertiesFormat`
+- New field `RollbackVersion` in struct `PacketCoreControlPlanePropertiesFormat`
+- New field `Sites` in struct `PacketCoreControlPlanePropertiesFormat`
+- New field `UeMtu` in struct `PacketCoreControlPlanePropertiesFormat`
+- New field `Platforms` in struct `PacketCoreControlPlaneVersionPropertiesFormat`
+- New field `AzureStackEdgeDevices` in struct `PlatformConfiguration`
+- New field `AzureStackHciCluster` in struct `PlatformConfiguration`
+- New field `SiteProvisioningState` in struct `SimPolicyPropertiesFormat`
+- New field `SiteProvisioningState` in struct `SimPropertiesFormat`
+- New field `VendorKeyFingerprint` in struct `SimPropertiesFormat`
+- New field `VendorName` in struct `SimPropertiesFormat`
+
+
+## 0.6.0 (2022-07-21)
+### Breaking Changes
+
+- Function `*SimsClient.Get` parameter(s) have been changed from `(context.Context, string, string, *SimsClientGetOptions)` to `(context.Context, string, string, string, *SimsClientGetOptions)`
+- Function `*SimsClient.BeginDelete` parameter(s) have been changed from `(context.Context, string, string, *SimsClientBeginDeleteOptions)` to `(context.Context, string, string, string, *SimsClientBeginDeleteOptions)`
+- Function `*SimsClient.BeginCreateOrUpdate` parameter(s) have been changed from `(context.Context, string, string, Sim, *SimsClientBeginCreateOrUpdateOptions)` to `(context.Context, string, string, string, Sim, *SimsClientBeginCreateOrUpdateOptions)`
+- Function `*SimsClient.NewListByResourceGroupPager` has been removed
+- Function `*SimsClient.NewListBySubscriptionPager` has been removed
+- Function `*SimsClient.UpdateTags` has been removed
+- Struct `SimsClientListByResourceGroupOptions` has been removed
+- Struct `SimsClientListByResourceGroupResponse` has been removed
+- Struct `SimsClientListBySubscriptionOptions` has been removed
+- Struct `SimsClientListBySubscriptionResponse` has been removed
+- Struct `SimsClientUpdateTagsOptions` has been removed
+- Struct `SimsClientUpdateTagsResponse` has been removed
+- Field `MobileNetwork` of struct `SimPropertiesFormat` has been removed
+- Field `Tags` of struct `Sim` has been removed
+- Field `Location` of struct `Sim` has been removed
+- Field `CustomLocation` of struct `PacketCoreControlPlanePropertiesFormat` has been removed
+
+### Features Added
+
+- New const `ManagedServiceIdentityTypeSystemAssigned`
+- New const `VersionStateValidationFailed`
+- New const `VersionStateUnknown`
+- New const `ManagedServiceIdentityTypeNone`
+- New const `RecommendedVersionNotRecommended`
+- New const `BillingSKUEdgeSite2GBPS`
+- New const `BillingSKULargePackage`
+- New const `VersionStateActive`
+- New const `PlatformTypeAKSHCI`
+- New const `BillingSKUFlagshipStarterPackage`
+- New const `VersionStateDeprecated`
+- New const `BillingSKUEdgeSite4GBPS`
+- New const `BillingSKUEdgeSite3GBPS`
+- New const `PlatformTypeBaseVM`
+- New const `BillingSKUEvaluationPackage`
+- New const `ManagedServiceIdentityTypeSystemAssignedUserAssigned`
+- New const `BillingSKUMediumPackage`
+- New const `ManagedServiceIdentityTypeUserAssigned`
+- New const `RecommendedVersionRecommended`
+- New const `VersionStatePreview`
+- New const `VersionStateValidating`
+- New function `PossibleRecommendedVersionValues() []RecommendedVersion`
+- New function `PossibleBillingSKUValues() []BillingSKU`
+- New function `*SimGroupsClient.UpdateTags(context.Context, string, string, TagsObject, *SimGroupsClientUpdateTagsOptions) (SimGroupsClientUpdateTagsResponse, error)`
+- New function `*PacketCoreControlPlaneVersionsClient.NewListByResourceGroupPager(*PacketCoreControlPlaneVersionsClientListByResourceGroupOptions) *runtime.Pager[PacketCoreControlPlaneVersionsClientListByResourceGroupResponse]`
+- New function `*SimGroupsClient.NewListByResourceGroupPager(string, *SimGroupsClientListByResourceGroupOptions) *runtime.Pager[SimGroupsClientListByResourceGroupResponse]`
+- New function `*PacketCoreControlPlaneVersionsClient.Get(context.Context, string, *PacketCoreControlPlaneVersionsClientGetOptions) (PacketCoreControlPlaneVersionsClientGetResponse, error)`
+- New function `*SimGroupsClient.Get(context.Context, string, string, *SimGroupsClientGetOptions) (SimGroupsClientGetResponse, error)`
+- New function `PossibleManagedServiceIdentityTypeValues() []ManagedServiceIdentityType`
+- New function `*SimGroupsClient.NewListBySubscriptionPager(*SimGroupsClientListBySubscriptionOptions) *runtime.Pager[SimGroupsClientListBySubscriptionResponse]`
+- New function `*SimGroupsClient.BeginDelete(context.Context, string, string, *SimGroupsClientBeginDeleteOptions) (*runtime.Poller[SimGroupsClientDeleteResponse], error)`
+- New function `NewPacketCoreControlPlaneVersionsClient(azcore.TokenCredential, *arm.ClientOptions) (*PacketCoreControlPlaneVersionsClient, error)`
+- New function `PossibleVersionStateValues() []VersionState`
+- New function `*SimsClient.NewListBySimGroupPager(string, string, *SimsClientListBySimGroupOptions) *runtime.Pager[SimsClientListBySimGroupResponse]`
+- New function `NewSimGroupsClient(string, azcore.TokenCredential, *arm.ClientOptions) (*SimGroupsClient, error)`
+- New function `PossiblePlatformTypeValues() []PlatformType`
+- New function `*SimGroupsClient.BeginCreateOrUpdate(context.Context, string, string, SimGroup, *SimGroupsClientBeginCreateOrUpdateOptions) (*runtime.Poller[SimGroupsClientCreateOrUpdateResponse], error)`
+- New struct `AzureStackEdgeDeviceResourceID`
+- New struct `ConnectedClusterResourceID`
+- New struct `KeyVaultCertificate`
+- New struct `KeyVaultKey`
+- New struct `LocalDiagnosticsAccessConfiguration`
+- New struct `ManagedServiceIdentity`
+- New struct `PacketCoreControlPlaneVersion`
+- New struct `PacketCoreControlPlaneVersionListResult`
+- New struct `PacketCoreControlPlaneVersionPropertiesFormat`
+- New struct `PacketCoreControlPlaneVersionsClient`
+- New struct `PacketCoreControlPlaneVersionsClientGetOptions`
+- New struct `PacketCoreControlPlaneVersionsClientGetResponse`
+- New struct `PacketCoreControlPlaneVersionsClientListByResourceGroupOptions`
+- New struct `PacketCoreControlPlaneVersionsClientListByResourceGroupResponse`
+- New struct `PlatformConfiguration`
+- New struct `ProxyResource`
+- New struct `SimGroup`
+- New struct `SimGroupListResult`
+- New struct `SimGroupPropertiesFormat`
+- New struct `SimGroupResourceID`
+- New struct `SimGroupsClient`
+- New struct `SimGroupsClientBeginCreateOrUpdateOptions`
+- New struct `SimGroupsClientBeginDeleteOptions`
+- New struct `SimGroupsClientCreateOrUpdateResponse`
+- New struct `SimGroupsClientDeleteResponse`
+- New struct `SimGroupsClientGetOptions`
+- New struct `SimGroupsClientGetResponse`
+- New struct `SimGroupsClientListByResourceGroupOptions`
+- New struct `SimGroupsClientListByResourceGroupResponse`
+- New struct `SimGroupsClientListBySubscriptionOptions`
+- New struct `SimGroupsClientListBySubscriptionResponse`
+- New struct `SimGroupsClientUpdateTagsOptions`
+- New struct `SimGroupsClientUpdateTagsResponse`
+- New struct `SimsClientListBySimGroupOptions`
+- New struct `SimsClientListBySimGroupResponse`
+- New struct `UserAssignedIdentity`
+- New field `Identity` in struct `PacketCoreControlPlane`
+- New field `InteropSettings` in struct `PacketCoreControlPlanePropertiesFormat`
+- New field `SKU` in struct `PacketCoreControlPlanePropertiesFormat`
+- New field `LocalDiagnosticsAccess` in struct `PacketCoreControlPlanePropertiesFormat`
+- New field `Platform` in struct `PacketCoreControlPlanePropertiesFormat`
+- New field `DNSAddresses` in struct `AttachedDataNetworkPropertiesFormat`
+
+
+## 0.5.0 (2022-05-18)
+
+The package of `github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/mobilenetwork/armmobilenetwork` is using our [next generation design principles](https://azure.github.io/azure-sdk/general_introduction.html) since version 0.5.0, which contains breaking changes.
+
+To migrate the existing applications to the latest version, please refer to [Migration Guide](https://aka.ms/azsdk/go/mgmt/migration).
+
+To learn more, please refer to our documentation [Quick Start](https://aka.ms/azsdk/go/mgmt).

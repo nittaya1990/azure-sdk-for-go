@@ -18,6 +18,7 @@ type GenerateInput struct {
 	RepoHTTPSURL            string                        `json:"repoHttpsUrl,omitempty"`
 	Trigger                 string                        `json:"trigger,omitempty"`
 	ChangedFiles            []string                      `json:"changedFiles,omitempty"`
+	RelatedReadmeMdFile     string                        `json:"relatedReadmeMdFile,omitempty"`
 	RelatedReadmeMdFiles    []string                      `json:"relatedReadmeMdFiles,omitempty"`
 	InstallInstructionInput InstallInstructionScriptInput `json:"installInstructionInput,omitempty"`
 }
@@ -77,10 +78,13 @@ type PackageResult struct {
 	Version             string                          `json:"version,omitempty"`
 	PackageName         string                          `json:"packageName,omitempty"`
 	Path                []string                        `json:"path"`
+	PackageFolder       string                          `json:"packageFolder"`
 	ReadmeMd            []string                        `json:"readmeMd"`
 	Changelog           *Changelog                      `json:"changelog,omitempty"`
 	Artifacts           []string                        `json:"artifacts,omitempty"`
 	InstallInstructions *InstallInstructionScriptOutput `json:"installInstructions,omitempty"`
+	APIViewArtifact     string                          `json:"apiViewArtifact,omitempty"`
+	Language            string                          `json:"language,omitempty"`
 }
 
 // Changelog ...

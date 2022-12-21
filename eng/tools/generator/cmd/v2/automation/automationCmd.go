@@ -4,9 +4,13 @@
 package automation
 
 import (
+	"archive/zip"
 	"fmt"
+	"io"
+	"io/fs"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/Azure/azure-sdk-for-go/eng/tools/generator/cmd/automation/pipeline"
@@ -20,14 +24,18 @@ import (
 // azure-sdk-for-go. It does not work if you are running this tool in somewhere else
 func Command() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:  "automation-v2 <generate input filepath> <generate output filepath>",
-		Args: cobra.ExactArgs(2),
+		Use:  "automation-v2 <generate input filepath> <generate output filepath> [goVersion]",
+		Args: cobra.RangeArgs(2, 3),
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			log.SetFlags(0) // remove the time stamp prefix
 			return nil
 		},
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if err := execute(args[0], args[1]); err != nil {
+			goVersion := "1.18"
+			if len(args) == 3 {
+				goVersion = args[2]
+			}
+			if err := execute(args[0], args[1], goVersion); err != nil {
 				logError(err)
 				return err
 			}
@@ -39,7 +47,7 @@ func Command() *cobra.Command {
 	return cmd
 }
 
-func execute(inputPath, outputPath string) error {
+func execute(inputPath, outputPath, goVersion string) error {
 	log.Printf("Reading generate input file from '%s'...", inputPath)
 	input, err := pipeline.ReadInput(inputPath)
 	if err != nil {
@@ -56,6 +64,7 @@ func execute(inputPath, outputPath string) error {
 		sdkRoot:    utils.NormalizePath(cwd),
 		specRoot:   input.SpecFolder,
 		commitHash: input.HeadSha,
+		goVersion:  goVersion,
 	}
 	output, err := ctx.generate(input)
 	if err != nil {
@@ -73,6 +82,7 @@ type automationContext struct {
 	sdkRoot    string
 	specRoot   string
 	commitHash string
+	goVersion  string
 }
 
 // TODO -- support dry run
@@ -91,15 +101,31 @@ func (ctx *automationContext) generate(input *pipeline.GenerateInput) (*pipeline
 		return nil, fmt.Errorf("failed to get sdk repo: %+v", err)
 	}
 
+	if input.RelatedReadmeMdFile != "" {
+		input.RelatedReadmeMdFiles = append(input.RelatedReadmeMdFiles, input.RelatedReadmeMdFile)
+	}
+
 	for _, readme := range input.RelatedReadmeMdFiles {
 		log.Printf("Start to process readme file: %s", readme)
+
+		sepStrs := strings.Split(readme, "/")
+		for i, sepStr := range sepStrs {
+			if sepStr == "resource-manager" {
+				readme = strings.Join(sepStrs[i-1:], "/")
+				if i > 1 {
+					ctx.specRoot = input.SpecFolder + "/" + strings.Join(sepStrs[:i-1], "/")
+				}
+				break
+			}
+		}
+
 		generateCtx := common.GenerateContext{
 			SDKPath:  sdkRepo.Root(),
 			SDKRepo:  &sdkRepo,
 			SpecPath: ctx.specRoot,
 		}
 
-		namespaceResults, errors := generateCtx.GenerateForAutomation(readme, input.RepoHTTPSURL)
+		namespaceResults, errors := generateCtx.GenerateForAutomation(readme, input.RepoHTTPSURL, ctx.goVersion)
 		if len(errors) != 0 {
 			errorBuilder.add(errors...)
 			continue
@@ -110,16 +136,26 @@ func (ctx *automationContext) generate(input *pipeline.GenerateInput) (*pipeline
 			breaking := namespaceResult.Changelog.HasBreakingChanges()
 			breakingChangeItems := namespaceResult.Changelog.GetBreakingChangeItems()
 
+			srcFolder := filepath.Join(sdkRepo.Root(), "sdk", "resourcemanager", namespaceResult.RPName, namespaceResult.PackageName)
+			apiViewArtifact := filepath.Join(sdkRepo.Root(), "sdk", "resourcemanager", namespaceResult.RPName, namespaceResult.PackageName+".gosource")
+			err := zipDirectory(srcFolder, apiViewArtifact)
+			if err != nil {
+				fmt.Println(err)
+			}
+
 			results = append(results, pipeline.PackageResult{
-				Version:     namespaceResult.Version,
-				PackageName: namespaceResult.PackageName,
-				Path:        []string{fmt.Sprintf("sdk/resourcemanager/%s/%s", namespaceResult.RPName, namespaceResult.PackageName)},
-				ReadmeMd:    []string{readme},
+				Version:       namespaceResult.Version,
+				PackageName:   fmt.Sprintf("sdk/resourcemanager/%s/%s", namespaceResult.RPName, namespaceResult.PackageName),
+				Path:          []string{fmt.Sprintf("sdk/resourcemanager/%s/%s", namespaceResult.RPName, namespaceResult.PackageName)},
+				PackageFolder: fmt.Sprintf("sdk/resourcemanager/%s/%s", namespaceResult.RPName, namespaceResult.PackageName),
+				ReadmeMd:      []string{readme},
 				Changelog: &pipeline.Changelog{
 					Content:             &content,
 					HasBreakingChange:   &breaking,
 					BreakingChangeItems: &breakingChangeItems,
 				},
+				APIViewArtifact: fmt.Sprintf("sdk/resourcemanager/%s/%s", namespaceResult.RPName, namespaceResult.PackageName+".gosource"),
+				Language:        "Go",
 			})
 		}
 		log.Printf("Finish to process readme file: %s", readme)
@@ -155,4 +191,58 @@ func logError(err error) {
 			log.Printf("[ERROR] %s", l)
 		}
 	}
+}
+
+func zipDirectory(srcFolder, dstZip string) error {
+	outFile, err := os.Create(dstZip)
+	if err != nil {
+		return err
+	}
+	w := zip.NewWriter(outFile)
+	srcFolder = strings.TrimSuffix(srcFolder, string(os.PathSeparator))
+	err = filepath.Walk(srcFolder, func(path string, info fs.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		header, err := zip.FileInfoHeader(info)
+		if err != nil {
+			return err
+		}
+		header.Method = zip.Deflate
+		header.Name, err = filepath.Rel(filepath.Dir(srcFolder), path)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			header.Name += string(os.PathSeparator)
+		}
+		hw, err := w.CreateHeader(header)
+		if err != nil {
+			return err
+		}
+		if info.IsDir() {
+			return nil
+		}
+		f, err := os.Open(path)
+		if err != nil {
+			return err
+		}
+		_, err = io.Copy(hw, f)
+		if err != nil {
+			return err
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	err = w.Close()
+	if err != nil {
+		return err
+	}
+	err = outFile.Close()
+	if err != nil {
+		return err
+	}
+	return nil
 }

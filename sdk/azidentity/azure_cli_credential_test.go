@@ -1,3 +1,6 @@
+//go:build go1.18
+// +build go1.18
+
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
@@ -6,12 +9,9 @@ package azidentity
 import (
 	"context"
 	"errors"
-	"net/http"
 	"testing"
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/azcore/runtime"
-	"github.com/Azure/azure-sdk-for-go/sdk/internal/mock"
 )
 
 var (
@@ -34,7 +34,7 @@ func TestAzureCLICredential_GetTokenSuccess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unable to create credential. Received: %v", err)
 	}
-	at, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{scope}})
+	at, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{liveTestScope}})
 	if err != nil {
 		t.Fatalf("Expected an empty error but received: %v", err)
 	}
@@ -53,7 +53,7 @@ func TestAzureCLICredential_GetTokenInvalidToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unable to create credential. Received: %v", err)
 	}
-	_, err = cred.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{scope}})
+	_, err = cred.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{liveTestScope}})
 	if err == nil {
 		t.Fatalf("Expected an error but did not receive one.")
 	}
@@ -76,32 +76,11 @@ func TestAzureCLICredential_TenantID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Unable to create credential. Received: %v", err)
 	}
-	_, err = cred.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{scope}})
+	_, err = cred.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{liveTestScope}})
 	if err != nil {
 		t.Fatalf("Unexpected error: %v", err)
 	}
 	if !called {
 		t.Fatal("token provider wasn't called")
-	}
-}
-
-func TestBearerPolicy_AzureCLICredential(t *testing.T) {
-	srv, close := mock.NewTLSServer()
-	defer close()
-	srv.AppendResponse(mock.WithStatusCode(http.StatusOK))
-	options := AzureCLICredentialOptions{}
-	options.tokenProvider = mockCLITokenProviderSuccess
-	cred, err := NewAzureCLICredential(&options)
-	if err != nil {
-		t.Fatalf("Did not expect an error but received: %v", err)
-	}
-	pipeline := defaultTestPipeline(srv, cred, scope)
-	req, err := runtime.NewRequest(context.Background(), http.MethodGet, srv.URL())
-	if err != nil {
-		t.Fatal(err)
-	}
-	_, err = pipeline.Do(req)
-	if err != nil {
-		t.Fatal("Expected nil error but received one")
 	}
 }

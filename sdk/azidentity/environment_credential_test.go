@@ -1,3 +1,6 @@
+//go:build go1.18
+// +build go1.18
+
 // Copyright (c) Microsoft Corporation. All rights reserved.
 // Licensed under the MIT License.
 
@@ -5,40 +8,28 @@ package azidentity
 
 import (
 	"context"
+	"fmt"
 	"os"
+	"reflect"
+	"strings"
 	"testing"
-	"time"
 
+	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
+	"github.com/Azure/azure-sdk-for-go/sdk/internal/mock"
 )
 
-func initEnvironmentVarsForTest() error {
-	err := os.Setenv("AZURE_TENANT_ID", tenantID)
-	if err != nil {
-		return err
-	}
-	err = os.Setenv("AZURE_CLIENT_ID", clientID)
-	if err != nil {
-		return err
-	}
-	err = os.Setenv("AZURE_CLIENT_SECRET", secret)
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
 func resetEnvironmentVarsForTest() {
-	clearEnvVars("AZURE_TENANT_ID", "AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "AZURE_CLIENT_CERTIFICATE_PATH", "AZURE_USERNAME", "AZURE_PASSWORD")
+	clearEnvVars(azureTenantID, azureClientID, azureClientSecret, azureClientCertificatePath, azureUsername, azurePassword)
 }
 
 func TestEnvironmentCredential_TenantIDNotSet(t *testing.T) {
 	resetEnvironmentVarsForTest()
-	err := os.Setenv("AZURE_CLIENT_ID", clientID)
+	err := os.Setenv(azureClientID, fakeClientID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_CLIENT_SECRET", secret)
+	err = os.Setenv(azureClientSecret, secret)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
@@ -50,11 +41,11 @@ func TestEnvironmentCredential_TenantIDNotSet(t *testing.T) {
 
 func TestEnvironmentCredential_ClientIDNotSet(t *testing.T) {
 	resetEnvironmentVarsForTest()
-	err := os.Setenv("AZURE_TENANT_ID", tenantID)
+	err := os.Setenv(azureTenantID, fakeTenantID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_CLIENT_SECRET", secret)
+	err = os.Setenv(azureClientSecret, secret)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
@@ -66,11 +57,11 @@ func TestEnvironmentCredential_ClientIDNotSet(t *testing.T) {
 
 func TestEnvironmentCredential_ClientSecretNotSet(t *testing.T) {
 	resetEnvironmentVarsForTest()
-	err := os.Setenv("AZURE_TENANT_ID", tenantID)
+	err := os.Setenv(azureTenantID, fakeTenantID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_CLIENT_ID", clientID)
+	err = os.Setenv(azureClientID, fakeClientID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
@@ -82,15 +73,15 @@ func TestEnvironmentCredential_ClientSecretNotSet(t *testing.T) {
 
 func TestEnvironmentCredential_ClientSecretSet(t *testing.T) {
 	resetEnvironmentVarsForTest()
-	err := os.Setenv("AZURE_TENANT_ID", tenantID)
+	err := os.Setenv(azureTenantID, fakeTenantID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_CLIENT_ID", clientID)
+	err = os.Setenv(azureClientID, fakeClientID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_CLIENT_SECRET", secret)
+	err = os.Setenv(azureClientSecret, secret)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
@@ -105,15 +96,15 @@ func TestEnvironmentCredential_ClientSecretSet(t *testing.T) {
 
 func TestEnvironmentCredential_ClientCertificatePathSet(t *testing.T) {
 	resetEnvironmentVarsForTest()
-	err := os.Setenv("AZURE_TENANT_ID", tenantID)
+	err := os.Setenv(azureTenantID, fakeTenantID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_CLIENT_ID", clientID)
+	err = os.Setenv(azureClientID, fakeClientID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_CLIENT_CERTIFICATE_PATH", "testdata/certificate.pem")
+	err = os.Setenv(azureClientCertificatePath, "testdata/certificate.pem")
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
@@ -126,17 +117,47 @@ func TestEnvironmentCredential_ClientCertificatePathSet(t *testing.T) {
 	}
 }
 
+func TestEnvironmentCredential_ClientCertificatePassword(t *testing.T) {
+	for key, value := range map[string]string{
+		azureTenantID:              fakeTenantID,
+		azureClientID:              fakeClientID,
+		azureClientCertificatePath: "testdata/certificate_encrypted_key.pfx",
+	} {
+		t.Setenv(key, value)
+	}
+	for _, correctPassword := range []bool{true, false} {
+		t.Run(fmt.Sprintf("%v", correctPassword), func(t *testing.T) {
+			password := "wrong password"
+			if correctPassword {
+				password = "password"
+			}
+			t.Setenv(azureClientCertificatePassword, password)
+			cred, err := NewEnvironmentCredential(nil)
+			if correctPassword {
+				if err != nil {
+					t.Fatal(err)
+				}
+				if _, ok := cred.cred.(*ClientCertificateCredential); !ok {
+					t.Fatalf("expected *azidentity.ClientCertificateCredential, got %t", cred)
+				}
+			} else if err == nil || !strings.Contains(err.Error(), "password") {
+				t.Fatal("expected an error about the password")
+			}
+		})
+	}
+}
+
 func TestEnvironmentCredential_UsernameOnlySet(t *testing.T) {
 	resetEnvironmentVarsForTest()
-	err := os.Setenv("AZURE_TENANT_ID", tenantID)
+	err := os.Setenv(azureTenantID, fakeTenantID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_CLIENT_ID", clientID)
+	err = os.Setenv(azureClientID, fakeClientID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_USERNAME", "username")
+	err = os.Setenv(azureUsername, "username")
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
@@ -148,19 +169,19 @@ func TestEnvironmentCredential_UsernameOnlySet(t *testing.T) {
 
 func TestEnvironmentCredential_UsernamePasswordSet(t *testing.T) {
 	resetEnvironmentVarsForTest()
-	err := os.Setenv("AZURE_TENANT_ID", tenantID)
+	err := os.Setenv(azureTenantID, fakeTenantID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_CLIENT_ID", clientID)
+	err = os.Setenv(azureClientID, fakeClientID)
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_USERNAME", "username")
+	err = os.Setenv(azureUsername, "username")
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
-	err = os.Setenv("AZURE_PASSWORD", "password")
+	err = os.Setenv(azurePassword, "password")
 	if err != nil {
 		t.Fatalf("Unexpected error when initializing environment variables: %v", err)
 	}
@@ -173,59 +194,131 @@ func TestEnvironmentCredential_UsernamePasswordSet(t *testing.T) {
 	}
 }
 
-func TestEnvironmentCredential_ClientSecretLive(t *testing.T) {
-	vars := map[string]string{
-		"AZURE_CLIENT_ID":     liveSP.clientID,
-		"AZURE_CLIENT_SECRET": liveSP.secret,
-		"AZURE_TENANT_ID":     liveSP.tenantID,
+func TestEnvironmentCredential_SendCertificateChain(t *testing.T) {
+	certData, err := os.ReadFile(liveSP.pfxPath)
+	if err != nil {
+		t.Fatal(err)
 	}
-	for _, v := range vars {
-		if v == "" {
-			t.Skip("missing live service principal configuration")
-		}
+	certs, _, err := ParseCertificates(certData, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resetEnvironmentVarsForTest()
+	srv, close := mock.NewServer(mock.WithTransformAllRequestsToTestServerUrl())
+	defer close()
+	srv.AppendResponse(mock.WithBody(instanceDiscoveryResponse))
+	srv.AppendResponse(mock.WithBody(tenantDiscoveryResponse))
+	srv.AppendResponse(mock.WithPredicate(validateX5C(t, certs)), mock.WithBody(accessTokenRespSuccess))
+	srv.AppendResponse()
+
+	vars := map[string]string{
+		azureClientID:              liveSP.clientID,
+		azureClientCertificatePath: liveSP.pfxPath,
+		azureTenantID:              liveSP.tenantID,
+		envVarSendCertChain:        "true",
 	}
 	setEnvironmentVariables(t, vars)
-	cred, err := NewEnvironmentCredential(nil)
+	cred, err := NewEnvironmentCredential(&EnvironmentCredentialOptions{ClientOptions: azcore.ClientOptions{Transport: srv}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	tk, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{liveTestScope}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tk.Token != tokenValue {
+		t.Fatalf("unexpected token: %s", tk.Token)
+	}
+}
+
+func TestEnvironmentCredential_ClientSecretLive(t *testing.T) {
+	vars := map[string]string{
+		azureClientID:     liveSP.clientID,
+		azureClientSecret: liveSP.secret,
+		azureTenantID:     liveSP.tenantID,
+	}
+	setEnvironmentVariables(t, vars)
+	opts, stop := initRecording(t)
+	defer stop()
+	cred, err := NewEnvironmentCredential(&EnvironmentCredentialOptions{ClientOptions: opts})
+	if err != nil {
+		t.Fatalf("failed to construct credential: %v", err)
+	}
+	testGetTokenSuccess(t, cred)
+}
+
+func TestEnvironmentCredential_InvalidClientSecretLive(t *testing.T) {
+	vars := map[string]string{
+		azureClientID:     liveSP.clientID,
+		azureClientSecret: "invalid secret",
+		azureTenantID:     liveSP.tenantID,
+	}
+	setEnvironmentVariables(t, vars)
+	opts, stop := initRecording(t)
+	defer stop()
+	cred, err := NewEnvironmentCredential(&EnvironmentCredentialOptions{ClientOptions: opts})
 	if err != nil {
 		t.Fatalf("failed to construct credential: %v", err)
 	}
 	tk, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{liveTestScope}})
-	if err != nil {
-		t.Fatalf("GetToken failed: %v", err)
+	if !reflect.ValueOf(tk).IsZero() {
+		t.Fatal("expected a zero value AccessToken")
 	}
-	if tk.Token == "" {
-		t.Fatalf("GetToken returned an invalid token")
+	if e, ok := err.(*AuthenticationFailedError); ok {
+		if e.RawResponse == nil {
+			t.Fatal("expected a non-nil RawResponse")
+		}
+	} else {
+		t.Fatalf("expected AuthenticationFailedError, received %T", err)
 	}
-	if !tk.ExpiresOn.After(time.Now().UTC()) {
-		t.Fatalf("GetToken returned an invalid expiration time")
+	if !strings.HasPrefix(err.Error(), credNameSecret) {
+		t.Fatal("missing credential type prefix")
 	}
 }
 
 func TestEnvironmentCredential_UserPasswordLive(t *testing.T) {
 	vars := map[string]string{
-		"AZURE_CLIENT_ID": developerSignOnClientID,
-		"AZURE_TENANT_ID": os.Getenv("AZURE_IDENTITY_TEST_TENANTID"),
-		"AZURE_USERNAME":  os.Getenv("AZURE_IDENTITY_TEST_USERNAME"),
-		"AZURE_PASSWORD":  os.Getenv("AZURE_IDENTITY_TEST_PASSWORD"),
-	}
-	for _, v := range vars {
-		if v == "" {
-			t.Skip("missing live user configuration")
-		}
+		azureClientID: developerSignOnClientID,
+		azureTenantID: liveUser.tenantID,
+		azureUsername: liveUser.username,
+		azurePassword: liveUser.password,
 	}
 	setEnvironmentVariables(t, vars)
-	cred, err := NewEnvironmentCredential(nil)
+	opts, stop := initRecording(t)
+	defer stop()
+	cred, err := NewEnvironmentCredential(&EnvironmentCredentialOptions{ClientOptions: opts})
+	if err != nil {
+		t.Fatalf("failed to construct credential: %v", err)
+	}
+	testGetTokenSuccess(t, cred)
+}
+
+func TestEnvironmentCredential_InvalidPasswordLive(t *testing.T) {
+	vars := map[string]string{
+		azureClientID: developerSignOnClientID,
+		azureTenantID: liveUser.tenantID,
+		azureUsername: liveUser.username,
+		azurePassword: "invalid password",
+	}
+	setEnvironmentVariables(t, vars)
+	opts, stop := initRecording(t)
+	defer stop()
+	cred, err := NewEnvironmentCredential(&EnvironmentCredentialOptions{ClientOptions: opts})
 	if err != nil {
 		t.Fatalf("failed to construct credential: %v", err)
 	}
 	tk, err := cred.GetToken(context.Background(), policy.TokenRequestOptions{Scopes: []string{liveTestScope}})
-	if err != nil {
-		t.Fatalf("GetToken failed: %v", err)
+	if !reflect.ValueOf(tk).IsZero() {
+		t.Fatal("expected a zero value AccessToken")
 	}
-	if tk.Token == "" {
-		t.Fatalf("GetToken returned an invalid token")
+	if e, ok := err.(*AuthenticationFailedError); ok {
+		if e.RawResponse == nil {
+			t.Fatal("expected a non-nil RawResponse")
+		}
+	} else {
+		t.Fatalf("expected AuthenticationFailedError, received %T", err)
 	}
-	if !tk.ExpiresOn.After(time.Now().UTC()) {
-		t.Fatalf("GetToken returned an invalid expiration time")
+	if !strings.HasPrefix(err.Error(), credNameUserPassword) {
+		t.Fatal("missing credential type prefix")
 	}
 }
